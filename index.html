@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ultimate Excel Merger Tool</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, sans-serif;
+}
+
+body{
+    background:linear-gradient(135deg,#0f172a,#1e293b);
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:30px;
+    color:white;
+}
+
+.container{
+    width:900px;
+    background:white;
+    color:#222;
+    border-radius:20px;
+    padding:40px;
+    box-shadow:0 10px 40px rgba(0,0,0,0.25);
+}
+
+h1{
+    text-align:center;
+    margin-bottom:10px;
+    font-size:34px;
+    color:#0f172a;
+}
+
+.subtitle{
+    text-align:center;
+    color:#666;
+    margin-bottom:30px;
+}
+
+.mode-box{
+    display:flex;
+    gap:20px;
+    margin-bottom:30px;
+}
+
+.mode{
+    flex:1;
+    border:2px solid #ddd;
+    padding:20px;
+    border-radius:12px;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.mode.active{
+    border-color:#2563eb;
+    background:#eff6ff;
+}
+
+.mode h3{
+    margin-bottom:10px;
+}
+
+.drop-area{
+    border:2px dashed #2563eb;
+    border-radius:15px;
+    padding:50px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.drop-area:hover{
+    background:#f8fbff;
+}
+
+.drop-area p{
+    font-size:20px;
+    font-weight:bold;
+    color:#2563eb;
+}
+
+input[type=file]{
+    display:none;
+}
+
+.file-list{
+    margin-top:25px;
+}
+
+.file-item{
+    background:#f5f5f5;
+    padding:12px;
+    border-radius:8px;
+    margin-bottom:10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.file-item span{
+    font-size:14px;
+}
+
+.remove-btn{
+    background:red;
+    color:white;
+    border:none;
+    padding:6px 10px;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+.actions{
+    display:flex;
+    gap:15px;
+    margin-top:30px;
+}
+
+button{
+    flex:1;
+    padding:15px;
+    border:none;
+    border-radius:10px;
+    font-size:16px;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.merge-btn{
+    background:#2563eb;
+    color:white;
+}
+
+.merge-btn:hover{
+    background:#1d4ed8;
+}
+
+.clear-btn{
+    background:#ef4444;
+    color:white;
+}
+
+.clear-btn:hover{
+    background:#dc2626;
+}
+
+.note{
+    margin-top:25px;
+    background:#f8fafc;
+    padding:20px;
+    border-radius:12px;
+    line-height:1.8;
+    color:#444;
+}
+
+.footer{
+    text-align:center;
+    margin-top:25px;
+    color:#777;
+    font-size:14px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Ultimate Excel Merger Tool</h1>
+
+    <div class="subtitle">
+        Merge Multiple Excel Files OR Merge All Sheets into One
+    </div>
+
+    <div class="mode-box">
+
+        <div class="mode active" id="multiFileMode" onclick="setMode('files')">
+            <h3>📁 Multi File Merge</h3>
+            <p>Merge multiple Excel files together</p>
+        </div>
+
+        <div class="mode" id="sheetMode" onclick="setMode('sheets')">
+            <h3>📑 Worksheet Merge</h3>
+            <p>Merge all sheets from one workbook</p>
+        </div>
+
+    </div>
+
+    <div class="drop-area" id="dropArea">
+        <p>Click or Drag Excel Files Here</p>
+        <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv">
+    </div>
+
+    <div class="file-list" id="fileList"></div>
+
+    <div class="actions">
+        <button class="merge-btn" onclick="mergeData()">
+            Merge & Download
+        </button>
+
+        <button class="clear-btn" onclick="clearFiles()">
+            Clear Files
+        </button>
+    </div>
+
+    <div class="note">
+        ✔ Multi File Merge Supported <br>
+        ✔ All Worksheet Merge Supported <br>
+        ✔ Sheet/File Name Automatically Added <br>
+        ✔ Drag & Drop Upload <br>
+        ✔ Modern UI Design
+    </div>
+
+    <div class="footer">
+        Built with HTML + CSS + JavaScript + XLSX Library
+    </div>
+
+</div>
+
+<script>
+
+let selectedFiles = [];
+let currentMode = "files";
+
+const dropArea = document.getElementById("dropArea");
+const fileInput = document.getElementById("fileInput");
+const fileList = document.getElementById("fileList");
+
+function setMode(mode){
+
+    currentMode = mode;
+
+    document.getElementById("multiFileMode").classList.remove("active");
+    document.getElementById("sheetMode").classList.remove("active");
+
+    if(mode === "files"){
+        document.getElementById("multiFileMode").classList.add("active");
+        fileInput.multiple = true;
+    }
+    else{
+        document.getElementById("sheetMode").classList.add("active");
+        fileInput.multiple = false;
+    }
+
+    clearFiles();
+}
+
+dropArea.addEventListener("click", () => {
+    fileInput.click();
+});
+
+fileInput.addEventListener("change", (e) => {
+    addFiles(e.target.files);
+});
+
+dropArea.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropArea.style.background = "#eff6ff";
+});
+
+dropArea.addEventListener("dragleave", () => {
+    dropArea.style.background = "";
+});
+
+dropArea.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropArea.style.background = "";
+    addFiles(e.dataTransfer.files);
+});
+
+function addFiles(files){
+
+    if(currentMode === "sheets"){
+        selectedFiles = [files[0]];
+    }
+    else{
+        for(let file of files){
+            selectedFiles.push(file);
+        }
+    }
+
+    showFiles();
+}
+
+function showFiles(){
+
+    fileList.innerHTML = "";
+
+    selectedFiles.forEach((file,index)=>{
+
+        fileList.innerHTML += `
+            <div class="file-item">
+                <span>${index + 1}. ${file.name}</span>
+
+                <button class="remove-btn" onclick="removeFile(${index})">
+                    Remove
+                </button>
+            </div>
+        `;
+    });
+}
+
+function removeFile(index){
+    selectedFiles.splice(index,1);
+    showFiles();
+}
+
+function clearFiles(){
+    selectedFiles = [];
+    fileList.innerHTML = "";
+}
+
+async function mergeData(){
+
+    if(selectedFiles.length === 0){
+        alert("Please upload files first.");
+        return;
+    }
+
+    if(currentMode === "files"){
+        mergeMultipleFiles();
+    }
+    else{
+        mergeAllSheets();
+    }
+}
+
+async function mergeMultipleFiles(){
+
+    let finalData = [];
+    let headerAdded = false;
+
+    for(let file of selectedFiles){
+
+        const data = await file.arrayBuffer();
+
+        const workbook = XLSX.read(data,{type:'array'});
+
+        const firstSheet = workbook.SheetNames[0];
+
+        const worksheet = workbook.Sheets[firstSheet];
+
+        const rows = XLSX.utils.sheet_to_json(worksheet,{
+            header:1,
+            defval:""
+        });
+
+        if(rows.length === 0) continue;
+
+        const header = rows[0];
+
+        if(!headerAdded){
+
+            header.unshift("File Name");
+
+            finalData.push(header);
+
+            headerAdded = true;
+        }
+
+        for(let i=1;i<rows.length;i++){
+
+            let row = rows[i];
+
+            row.unshift(file.name);
+
+            finalData.push(row);
+        }
+    }
+
+    downloadExcel(finalData,"Merged_Files.xlsx");
+}
+
+async function mergeAllSheets(){
+
+    const file = selectedFiles[0];
+
+    const data = await file.arrayBuffer();
+
+    const workbook = XLSX.read(data,{type:'array'});
+
+    let mergedData = [];
+
+    workbook.SheetNames.forEach(sheetName=>{
+
+        const worksheet = workbook.Sheets[sheetName];
+
+        const rows = XLSX.utils.sheet_to_json(worksheet,{
+            header:1,
+            blankrows:false
+        });
+
+        rows.forEach((row,index)=>{
+
+            if(index === 0){
+
+                row.unshift("Sheet Name");
+
+                mergedData.push(row);
+            }
+            else{
+
+                row.unshift(sheetName);
+
+                mergedData.push(row);
+            }
+
+        });
+
+        mergedData.push([]);
+    });
+
+    downloadExcel(mergedData,"Merged_Sheets.xlsx");
+}
+
+function downloadExcel(data,fileName){
+
+    const newWorkbook = XLSX.utils.book_new();
+
+    const newWorksheet = XLSX.utils.aoa_to_sheet(data);
+
+    XLSX.utils.book_append_sheet(
+        newWorkbook,
+        newWorksheet,
+        "MergedData"
+    );
+
+    XLSX.writeFile(newWorkbook,fileName);
+
+    alert("Excel merged successfully!");
+}
+
+</script>
+
+</body>
+</html>
