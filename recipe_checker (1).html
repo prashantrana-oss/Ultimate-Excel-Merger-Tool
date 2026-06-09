@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recipe Duplicate Checker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 32px 16px; }
+  h1 { text-align: center; font-size: 1.6rem; font-weight: 700; color: #f8fafc; margin-bottom: 4px; letter-spacing: -0.02em; }
+  .subtitle { text-align: center; font-size: 0.85rem; color: #64748b; margin-bottom: 32px; }
+  .upload-zone { border: 2px dashed #334155; border-radius: 14px; padding: 40px 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; max-width: 540px; margin: 0 auto 32px; background: #161b27; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: #6366f1; background: #1a1f35; }
+  .upload-icon { font-size: 2.4rem; margin-bottom: 10px; }
+  .upload-zone p { color: #94a3b8; font-size: 0.9rem; }
+  .upload-zone strong { color: #a5b4fc; }
+  #fileInput { display: none; }
+  .btn { display: inline-block; margin-top: 14px; padding: 10px 24px; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .btn:hover { background: #4f46e5; }
+  .mapping-section { display: none; max-width: 700px; margin: 0 auto 28px; background: #161b27; border: 1px solid #1e293b; border-radius: 12px; padding: 20px 24px; }
+  .mapping-section h2 { font-size: 1rem; font-weight: 600; color: #c7d2fe; margin-bottom: 14px; }
+  .mapping-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  .mapping-row label { font-size: 0.82rem; color: #94a3b8; min-width: 160px; }
+  .mapping-row select { flex: 1; min-width: 160px; background: #0f1117; border: 1px solid #334155; color: #e2e8f0; border-radius: 7px; padding: 7px 10px; font-size: 0.85rem; }
+  .process-btn { margin-top: 14px; padding: 10px 28px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: background 0.2s; }
+  .process-btn:hover { background: #059669; }
+  .stats-bar { max-width: 900px; margin: 0 auto 22px; display: none; gap: 12px; flex-wrap: wrap; }
+  .stat-card { flex: 1; min-width: 130px; background: #161b27; border: 1px solid #1e293b; border-radius: 10px; padding: 14px 18px; text-align: center; }
+  .stat-num { font-size: 1.5rem; font-weight: 700; color: #a5b4fc; }
+  .stat-label { font-size: 0.74rem; color: #64748b; margin-top: 2px; }
+  .download-row { display: none; text-align: center; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .download-btn { padding: 11px 26px; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.88rem; transition: background 0.2s; }
+  .btn-excel { background: #16a34a; }
+  .btn-excel:hover { background: #15803d; }
+  .btn-csv { background: #0ea5e9; }
+  .btn-csv:hover { background: #0284c7; }
+  .btn-clean { background: #7c3aed; }
+  .btn-clean:hover { background: #6d28d9; }
+  .btn-merge { background: #ea580c; }
+  .btn-merge:hover { background: #c2410c; }
+  .results-section { max-width: 900px; margin: 0 auto; }
+  .recipe-card { background: #161b27; border: 1px solid #1e293b; border-radius: 12px; margin-bottom: 18px; overflow: hidden; }
+  .recipe-header { padding: 14px 20px; background: #1e2538; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; gap: 10px; }
+  .recipe-name { font-weight: 600; font-size: 0.95rem; color: #e2e8f0; flex: 1; }
+  .badge { font-size: 0.73rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+  .badge-dup { background: #7f1d1d; color: #fca5a5; }
+  .badge-ok { background: #14532d; color: #86efac; }
+  .toggle-icon { color: #64748b; font-size: 1rem; transition: transform 0.2s; }
+  .recipe-card.open .toggle-icon { transform: rotate(180deg); }
+  .recipe-body { display: none; padding: 0 0 10px; }
+  .recipe-card.open .recipe-body { display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  th { padding: 8px 14px; text-align: left; background: #0f1117; color: #64748b; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 8px 14px; border-top: 1px solid #1e293b; }
+  tr.duplicate-row td { background: #3b1818; color: #fca5a5; }
+  tr.duplicate-row td:first-child { font-weight: 600; }
+  tr.normal-row:hover td { background: #1e293b; }
+  .dup-tag { display: inline-block; font-size: 0.68rem; background: #ef4444; color: #fff; border-radius: 4px; padding: 1px 7px; margin-left: 8px; font-weight: 600; vertical-align: middle; }
+  .filter-row { display: none; max-width: 900px; margin: 0 auto 18px; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .filter-row input { flex: 1; min-width: 200px; background: #161b27; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: 9px 14px; font-size: 0.87rem; }
+  .filter-row input::placeholder { color: #475569; }
+  .filter-toggle { padding: 9px 16px; border: 1px solid #334155; border-radius: 8px; background: #161b27; color: #94a3b8; font-size: 0.83rem; cursor: pointer; transition: border-color 0.2s; }
+  .filter-toggle.active { border-color: #ef4444; color: #fca5a5; }
+  .empty { text-align: center; color: #475569; padding: 40px; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<h1>🍳 Recipe Duplicate Checker</h1>
+<p class="subtitle">Upload your Excel/CSV — duplicate raw materials will be highlighted red. Download highlighted Excel file!</p>
+
+<div class="upload-zone" id="uploadZone">
+  <div class="upload-icon">📂</div>
+  <p><strong>Click to upload</strong> or drag & drop your file here</p>
+  <p style="margin-top:6px; font-size:0.78rem; color:#475569;">Supports .xlsx, .xls, .csv</p>
+  <button class="btn" onclick="document.getElementById('fileInput').click()">Choose File</button>
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+  <p id="fileName" style="margin-top:10px; font-size:0.8rem; color:#6366f1;"></p>
+</div>
+
+<div class="mapping-section" id="mappingSection">
+  <h2>📋 Map your columns</h2>
+  <div class="mapping-row">
+    <label>Recipe Name column (Col A):</label>
+    <select id="colRecipe"></select>
+  </div>
+  <div class="mapping-row">
+    <label>Raw Material column (Col B):</label>
+    <select id="colMaterial"></select>
+  </div>
+  <div class="mapping-row">
+    <label>Qty column (Col C) — optional:</label>
+    <select id="colQty"><option value="">-- None --</option></select>
+  </div>
+  <div class="mapping-row">
+    <label>Unit column (Col D) — optional:</label>
+    <select id="colUnit"><option value="">-- None --</option></select>
+  </div>
+  <button class="process-btn" onclick="processData()">✅ Find Duplicates</button>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat-card"><div class="stat-num" id="statRecipes">0</div><div class="stat-label">Total Recipes</div></div>
+  <div class="stat-card"><div class="stat-num" id="statDupRecipes" style="color:#f87171;">0</div><div class="stat-label">Recipes with Duplicates</div></div>
+  <div class="stat-card"><div class="stat-num" id="statDupItems" style="color:#f87171;">0</div><div class="stat-label">Duplicate Entries</div></div>
+</div>
+
+<div class="filter-row" id="filterRow">
+  <input type="text" id="searchBox" placeholder="🔍 Search recipe name..." oninput="renderResults()">
+  <button class="filter-toggle" id="dupOnlyBtn" onclick="toggleDupOnly()">Show Duplicates Only</button>
+</div>
+
+<div class="download-row" id="downloadRow">
+  <button class="download-btn btn-excel" onclick="downloadExcel()">⬇️ Download Highlighted Excel (.xlsx)</button>
+  <button class="download-btn btn-clean" onclick="downloadCleanExcel()">🧹 Download Clean Excel (Duplicates Removed)</button>
+  <button class="download-btn btn-merge" onclick="downloadMergedQtyExcel()">➕ Download Merged Qty Excel (Qty Add)</button>
+  <button class="download-btn btn-csv" onclick="downloadCSV()">⬇️ Download CSV</button>
+</div>
+
+<div class="results-section" id="resultsSection"></div>
+
+<!-- Load ExcelJS for proper Excel styling -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script>
+let rawData = [];
+let headers = [];
+let processedRecipes = [];
+let dupOnly = false;
+
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+document.getElementById('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+
+function handleFile(file) {
+  if (!file) return;
+  document.getElementById('fileName').textContent = '📄 ' + file.name;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let data;
+    if (file.name.endsWith('.csv')) {
+      data = XLSX.read(e.target.result, { type: 'string' });
+    } else {
+      data = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+    }
+    const sheet = data.Sheets[data.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (json.length < 2) { alert('File seems empty!'); return; }
+    headers = json[0].map(String);
+    rawData = json.slice(1).filter(r => r.some(c => c !== ''));
+    populateMapping();
+  };
+  if (file.name.endsWith('.csv')) reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+}
+
+function populateMapping() {
+  ['colRecipe','colMaterial','colQty','colUnit'].forEach((id) => {
+    const sel = document.getElementById(id);
+    const isOptional = id === 'colQty' || id === 'colUnit';
+    while (sel.options.length > (isOptional ? 1 : 0)) sel.remove(isOptional ? 1 : 0);
+    headers.forEach((h, idx) => sel.appendChild(new Option(h || `Column ${idx+1}`, idx)));
+    if (id === 'colRecipe') sel.value = 0;
+    if (id === 'colMaterial') sel.value = Math.min(1, headers.length - 1);
+    if (id === 'colQty') sel.value = headers.length > 2 ? 2 : '';
+    if (id === 'colUnit') sel.value = headers.length > 3 ? 3 : '';
+  });
+  document.getElementById('mappingSection').style.display = 'block';
+}
+
+function processData() {
+  const rIdx = +document.getElementById('colRecipe').value;
+  const mIdx = +document.getElementById('colMaterial').value;
+  const qIdx = document.getElementById('colQty').value;
+  const uIdx = document.getElementById('colUnit').value;
+
+  const recipeMap = {};
+  rawData.forEach(row => {
+    const recipe = String(row[rIdx] || '').trim();
+    const material = String(row[mIdx] || '').trim();
+    if (!recipe || !material) return;
+    if (!recipeMap[recipe]) recipeMap[recipe] = [];
+    recipeMap[recipe].push({ material, qty: qIdx !== '' ? row[+qIdx] : '', unit: uIdx !== '' ? row[+uIdx] : '' });
+  });
+
+  processedRecipes = Object.entries(recipeMap).map(([name, items]) => {
+    const seen = {};
+    items.forEach(item => { const k = item.material.toLowerCase(); seen[k] = (seen[k]||0)+1; });
+    const dupKeys = new Set(Object.keys(seen).filter(k => seen[k] > 1));
+    return {
+      name,
+      items: items.map(item => ({ ...item, isDuplicate: dupKeys.has(item.material.toLowerCase()) })),
+      hasDuplicates: dupKeys.size > 0
+    };
+  });
+
+  const dupRecipes = processedRecipes.filter(r => r.hasDuplicates).length;
+  const dupEntries = processedRecipes.reduce((a, r) => a + r.items.filter(i => i.isDuplicate).length, 0);
+  document.getElementById('statRecipes').textContent = processedRecipes.length;
+  document.getElementById('statDupRecipes').textContent = dupRecipes;
+  document.getElementById('statDupItems').textContent = dupEntries;
+  document.getElementById('statsBar').style.display = 'flex';
+  document.getElementById('filterRow').style.display = 'flex';
+  document.getElementById('downloadRow').style.display = 'flex';
+  renderResults();
+}
+
+function renderResults() {
+  const query = (document.getElementById('searchBox')?.value || '').toLowerCase();
+  const container = document.getElementById('resultsSection');
+  container.innerHTML = '';
+  let shown = processedRecipes.filter(r => {
+    if (dupOnly && !r.hasDuplicates) return false;
+    if (query && !r.name.toLowerCase().includes(query)) return false;
+    return true;
+  });
+  if (!shown.length) { container.innerHTML = '<div class="empty">No recipes found.</div>'; return; }
+  shown.forEach(recipe => {
+    const card = document.createElement('div');
+    card.className = 'recipe-card' + (recipe.hasDuplicates ? ' open' : '');
+    const header = document.createElement('div');
+    header.className = 'recipe-header';
+    header.innerHTML = `<span class="recipe-name">${recipe.name}</span>
+      <span class="badge ${recipe.hasDuplicates ? 'badge-dup':'badge-ok'}">${recipe.hasDuplicates ? '⚠️ Duplicates Found':'✅ OK'}</span>
+      <span class="toggle-icon">▼</span>`;
+    header.onclick = () => card.classList.toggle('open');
+    const body = document.createElement('div');
+    body.className = 'recipe-body';
+    let html = `<table><thead><tr><th>#</th><th>Raw Material</th>${recipe.items[0]?.qty!==''?'<th>Qty</th>':''}${recipe.items[0]?.unit!==''?'<th>Unit</th>':''}</tr></thead><tbody>`;
+    recipe.items.forEach((item, i) => {
+      html += `<tr class="${item.isDuplicate?'duplicate-row':'normal-row'}">
+        <td>${i+1}</td>
+        <td>${item.material}${item.isDuplicate?'<span class="dup-tag">DUPLICATE</span>':''}</td>
+        ${item.qty!==''?`<td>${item.qty}</td>`:''}
+        ${item.unit!==''?`<td>${item.unit}</td>`:''}
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
+    card.appendChild(header); card.appendChild(body);
+    container.appendChild(card);
+  });
+}
+
+function toggleDupOnly() {
+  dupOnly = !dupOnly;
+  const btn = document.getElementById('dupOnlyBtn');
+  btn.classList.toggle('active', dupOnly);
+  btn.textContent = dupOnly ? '✅ Showing Duplicates Only' : 'Show Duplicates Only';
+  renderResults();
+}
+
+// ✅ HIGHLIGHTED EXCEL DOWNLOAD using ExcelJS
+async function downloadExcel() {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Recipe Duplicates');
+
+  // Header row
+  const hdrs = ['Recipe Name', 'Raw Material', 'Qty', 'Unit', 'Status'];
+  const headerRow = sheet.addRow(hdrs);
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11, name: 'Arial' };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = { bottom: { style: 'medium', color: { argb: 'FF6366F1' } } };
+  });
+  sheet.getRow(1).height = 22;
+
+  // Column widths
+  sheet.getColumn(1).width = 45;
+  sheet.getColumn(2).width = 30;
+  sheet.getColumn(3).width = 12;
+  sheet.getColumn(4).width = 12;
+  sheet.getColumn(5).width = 18;
+
+  let prevRecipe = '';
+  processedRecipes.forEach(recipe => {
+    recipe.items.forEach((item, idx) => {
+      const row = sheet.addRow([
+        idx === 0 ? recipe.name : '',  // show recipe name only on first row
+        item.material,
+        item.qty,
+        item.unit,
+        item.isDuplicate ? '⚠️ DUPLICATE' : '✅ OK'
+      ]);
+
+      if (item.isDuplicate) {
+        // Red background for duplicate rows
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD0D0' } };
+          cell.font = { color: { argb: 'FF8B0000' }, bold: true, name: 'Arial', size: 10 };
+        });
+        // Status cell stronger red
+        row.getCell(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEF4444' } };
+        row.getCell(5).font = { color: { argb: 'FFFFFFFF' }, bold: true, name: 'Arial', size: 10 };
+      } else {
+        row.eachCell(cell => {
+          cell.font = { name: 'Arial', size: 10, color: { argb: 'FF1E293B' } };
+          if (idx % 2 === 0) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+          }
+        });
+        row.getCell(5).font = { color: { argb: 'FF15803D' }, bold: true, name: 'Arial', size: 10 };
+      }
+
+      // Recipe name cell — light blue tint for first row of each recipe
+      if (idx === 0) {
+        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: item.isDuplicate ? 'FFFFD0D0' : 'FFE0E7FF' } };
+        row.getCell(1).font = { bold: true, name: 'Arial', size: 10, color: { argb: item.isDuplicate ? 'FF8B0000' : 'FF3730A3' } };
+      }
+
+      // Border between recipes
+      if (idx === recipe.items.length - 1) {
+        row.eachCell(cell => {
+          cell.border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+        });
+      }
+    });
+  });
+
+  // Freeze header row
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+  // Auto filter
+  sheet.autoFilter = { from: 'A1', to: 'E1' };
+
+  // Generate and download
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'recipe_duplicate_highlighted.xlsx';
+  a.click();
+}
+
+// 🧹 CLEAN EXCEL — duplicates removed (keep first occurrence only)
+async function downloadCleanExcel() {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Clean Recipes');
+
+  const hdrs = ['Recipe Name', 'Raw Material', 'Qty', 'Unit'];
+  const headerRow = sheet.addRow(hdrs);
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11, name: 'Arial' };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = { bottom: { style: 'medium', color: { argb: 'FF10B981' } } };
+  });
+  sheet.getRow(1).height = 22;
+  sheet.getColumn(1).width = 45;
+  sheet.getColumn(2).width = 30;
+  sheet.getColumn(3).width = 12;
+  sheet.getColumn(4).width = 12;
+
+  let removedCount = 0;
+
+  processedRecipes.forEach(recipe => {
+    const seen = new Set();
+    recipe.items.forEach((item, idx) => {
+      const key = item.material.toLowerCase();
+      if (seen.has(key)) {
+        // Skip duplicate — don't add to sheet
+        removedCount++;
+        return;
+      }
+      seen.add(key);
+      const row = sheet.addRow([
+        idx === 0 ? recipe.name : '',
+        item.material,
+        item.qty,
+        item.unit
+      ]);
+      row.eachCell(cell => {
+        cell.font = { name: 'Arial', size: 10, color: { argb: 'FF1E293B' } };
+        if (idx % 2 === 0) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        }
+      });
+      if (idx === 0) {
+        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
+        row.getCell(1).font = { bold: true, name: 'Arial', size: 10, color: { argb: 'FF3730A3' } };
+      }
+    });
+    // Border after each recipe
+    const lastRow = sheet.lastRow;
+    if (lastRow) {
+      lastRow.eachCell(cell => {
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+      });
+    }
+  });
+
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  sheet.autoFilter = { from: 'A1', to: 'D1' };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'recipe_clean_no_duplicates.xlsx';
+  a.click();
+
+  if (removedCount > 0) {
+    alert(`✅ Clean file downloaded!\n🗑️ ${removedCount} duplicate row(s) removed.\nHar recipe mein sirf pehli occurrence rakhi gayi hai.`);
+  }
+}
+
+// ➕ MERGED QTY EXCEL — duplicate raw materials ki qty add ho jaaye, unit same rahe
+async function downloadMergedQtyExcel() {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Merged Qty Recipes');
+
+  const hdrs = ['Recipe Name', 'Raw Material', 'Total Qty', 'Unit', 'Note'];
+  const headerRow = sheet.addRow(hdrs);
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11, name: 'Arial' };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C2D12' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = { bottom: { style: 'medium', color: { argb: 'FFEA580C' } } };
+  });
+  sheet.getRow(1).height = 22;
+  sheet.getColumn(1).width = 45;
+  sheet.getColumn(2).width = 30;
+  sheet.getColumn(3).width = 14;
+  sheet.getColumn(4).width = 10;
+  sheet.getColumn(5).width = 22;
+
+  let mergedCount = 0;
+
+  processedRecipes.forEach(recipe => {
+    // Group by material name (case-insensitive) — add qty, keep unit
+    const mergeMap = {};
+    const orderArr = []; // to preserve original order
+
+    recipe.items.forEach(item => {
+      const key = item.material.toLowerCase();
+      if (!mergeMap[key]) {
+        mergeMap[key] = {
+          material: item.material,
+          totalQty: 0,
+          unit: item.unit,
+          count: 0,
+          unitMismatch: false
+        };
+        orderArr.push(key);
+      }
+      // Add qty (parse as number, keep as-is if not number)
+      const qNum = parseFloat(item.qty);
+      if (!isNaN(qNum)) {
+        mergeMap[key].totalQty += qNum;
+      } else {
+        mergeMap[key].totalQty = item.qty; // non-numeric: just keep last
+      }
+      // Check unit mismatch (e.g. ml vs gm)
+      if (mergeMap[key].unit && item.unit && mergeMap[key].unit !== item.unit) {
+        mergeMap[key].unitMismatch = true;
+        mergeMap[key].unit = mergeMap[key].unit + '/' + item.unit; // show both
+      }
+      mergeMap[key].count++;
+    });
+
+    let firstRow = true;
+    orderArr.forEach(key => {
+      const m = mergeMap[key];
+      const wasDuplicate = m.count > 1;
+      if (wasDuplicate) mergedCount++;
+
+      const displayQty = typeof m.totalQty === 'number'
+        ? parseFloat(m.totalQty.toFixed(6))
+        : m.totalQty;
+
+      const note = wasDuplicate
+        ? (m.unitMismatch ? `⚠️ Unit mismatch! ${m.count} rows merged` : `✅ ${m.count} rows merged`)
+        : '';
+
+      const row = sheet.addRow([
+        firstRow ? recipe.name : '',
+        m.material,
+        displayQty,
+        m.unit,
+        note
+      ]);
+
+      if (wasDuplicate) {
+        // Orange tint for merged rows
+        row.eachCell((cell, colNum) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
+          cell.font = { name: 'Arial', size: 10, color: { argb: 'FF92400E' }, bold: colNum === 2 };
+        });
+        if (m.unitMismatch) {
+          row.getCell(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+          row.getCell(5).font = { name: 'Arial', size: 10, color: { argb: 'FFB45309' }, bold: true };
+        } else {
+          row.getCell(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+          row.getCell(5).font = { name: 'Arial', size: 10, color: { argb: 'FF065F46' }, bold: true };
+        }
+      } else {
+        row.eachCell(cell => {
+          cell.font = { name: 'Arial', size: 10, color: { argb: 'FF1E293B' } };
+        });
+      }
+
+      // Recipe name first cell styling
+      if (firstRow) {
+        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE7F3' } };
+        row.getCell(1).font = { bold: true, name: 'Arial', size: 10, color: { argb: 'FF831843' } };
+      }
+
+      firstRow = false;
+    });
+
+    // Separator line after each recipe
+    const lastRow = sheet.lastRow;
+    if (lastRow) {
+      lastRow.eachCell(cell => {
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+      });
+    }
+  });
+
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  sheet.autoFilter = { from: 'A1', to: 'E1' };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'recipe_merged_qty.xlsx';
+  a.click();
+
+  if (mergedCount > 0) {
+    alert(`✅ Merged Qty file downloaded!\n➕ ${mergedCount} duplicate material(s) ki qty add karke ek row mein combine ki gayi.\n\n⚠️ Note: Agar unit alag thi (jaise ml vs gm) to woh alag dikhayega.`);
+  }
+}
+
+function downloadCSV() {
+  let csv = 'Recipe Name,Raw Material,Qty,Unit,Is Duplicate\n';
+  processedRecipes.forEach(recipe => {
+    recipe.items.forEach(item => {
+      csv += `"${recipe.name}","${item.material}","${item.qty}","${item.unit}","${item.isDuplicate?'YES':'NO'}"\n`;
+    });
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'recipe_duplicate_check.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
