@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raw Material Validator</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    background:#f4f6f9;
+    margin:20px;
+}
+.container{
+    max-width:1400px;
+    margin:auto;
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 2px 10px rgba(0,0,0,.1);
+}
+h2{
+    text-align:center;
+}
+.upload-box{
+    display:flex;
+    gap:20px;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+}
+.upload-card{
+    flex:1;
+    min-width:300px;
+    border:2px dashed #ccc;
+    padding:20px;
+    border-radius:10px;
+}
+button{
+    padding:10px 20px;
+    border:none;
+    background:#007bff;
+    color:white;
+    border-radius:5px;
+    cursor:pointer;
+    margin-right:10px;
+}
+button:hover{
+    background:#0056b3;
+}
+.summary{
+    display:flex;
+    gap:15px;
+    flex-wrap:wrap;
+    margin:20px 0;
+}
+.card{
+    background:#f8f9fa;
+    padding:15px;
+    border-radius:8px;
+    min-width:180px;
+    text-align:center;
+    font-weight:bold;
+}
+.card.c-matched { border-left: 5px solid #28a745; }
+.card.c-purchase { border-left: 5px solid #fd7e14; }
+.card.c-uniterror { border-left: 5px solid #ffc107; }
+.card.c-notmatch  { border-left: 5px solid #dc3545; }
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
+    font-size:13px;
+}
+th,td{
+    border:1px solid #ddd;
+    padding:8px;
+    white-space:nowrap;
+}
+th{
+    background:#007bff;
+    color:white;
+}
+.notmatch   { background:#ffb3b3; }
+.uniterror  { background:#fff2a8; }
+.ok         { background:#d4edda; }
+.purchasematch { background:#ffd8a8; }
+
+.legend{
+    display:flex;
+    gap:15px;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+    font-size:13px;
+}
+.legend-item{
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+.legend-box{
+    width:18px;
+    height:18px;
+    border-radius:3px;
+    border:1px solid #ccc;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h2>Raw Material Validation Tool</h2>
+
+<div class="upload-box">
+
+<div class="upload-card">
+    <h3>Recipe File</h3>
+    <input type="file" id="recipeFile" accept=".xlsx,.xls">
+    <p>
+        Recipe Product Name = Column B<br>
+        Recipe Unit = Column D
+    </p>
+</div>
+
+<div class="upload-card">
+    <h3>Raw Material File</h3>
+    <input type="file" id="rawFile" accept=".xlsx,.xls">
+    <p>
+        Raw Material Name = Column A<br>
+        Consumption Unit = Column D<br>
+        <strong>Purchase Unit = Column E</strong>
+    </p>
+</div>
+
+</div>
+
+<button onclick="processFiles()">✅ Validate Data</button>
+<button onclick="downloadExcel()">⬇️ Download Result</button>
+
+<div class="summary" style="margin-top:20px;">
+    <div class="card">Total Records<br><span id="total">0</span></div>
+    <div class="card c-matched">Consumption Match<br><span id="matched">0</span></div>
+    <div class="card c-purchase">Purchase Unit Match<br><span id="purchasematch">0</span></div>
+    <div class="card c-uniterror">Unit Error<br><span id="uniterror">0</span></div>
+    <div class="card c-notmatch">Not Matched<br><span id="notmatched">0</span></div>
+</div>
+
+<div class="legend">
+    <strong>Legend:</strong>
+    <div class="legend-item"><div class="legend-box ok"></div> Consumption Unit Match (TRUE)</div>
+    <div class="legend-item"><div class="legend-box purchasematch"></div> Purchase Unit Match</div>
+    <div class="legend-item"><div class="legend-box uniterror"></div> Unit Error (FALSE)</div>
+    <div class="legend-item"><div class="legend-box notmatch"></div> Not Matched (DD)</div>
+</div>
+
+<div style="overflow:auto;">
+    <table id="previewTable"></table>
+</div>
+
+</div>
+
+<script>
+
+let finalData = [];
+
+function readExcel(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            resolve(json);
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+async function processFiles() {
+
+    const recipe = document.getElementById('recipeFile').files[0];
+    const raw = document.getElementById('rawFile').files[0];
+
+    if (!recipe || !raw) {
+        alert("Please upload both files");
+        return;
+    }
+
+    const recipeData = await readExcel(recipe);
+    const rawData = await readExcel(raw);
+
+    // rawMap stores: { NAME: { consumptionUnit, purchaseUnit } }
+    const rawMap = {};
+
+    for (let i = 1; i < rawData.length; i++) {
+        const rawName        = (rawData[i][0] || "").toString().trim().toUpperCase();
+        const consumptionUnit = (rawData[i][3] || "").toString().trim().toUpperCase(); // Column D
+        const purchaseUnit    = (rawData[i][4] || "").toString().trim().toUpperCase(); // Column E
+
+        if (rawName) {
+            rawMap[rawName] = { consumptionUnit, purchaseUnit };
+        }
+    }
+
+    finalData = [];
+
+    let matched       = 0;
+    let purchaseMatch = 0;
+    let unitError     = 0;
+    let notMatched    = 0;
+
+    // Build header — add extra columns
+    const header = [
+        ...recipeData[0],
+        "RM Consumption Unit",   // Raw material ki actual consumption unit
+        "RM Purchase Unit",      // Raw material ki purchase unit
+        "Status",
+        "Remark"
+    ];
+
+    finalData.push(header);
+
+    for (let i = 1; i < recipeData.length; i++) {
+
+        let row = [...recipeData[i]];
+
+        const recipeRM   = (row[1] || "").toString().trim().toUpperCase(); // Column B
+        const recipeUnit = (row[3] || "").toString().trim().toUpperCase(); // Column D
+
+        let status  = "";
+        let remark  = "";
+        let rmConsumptionUnitDisplay = "";
+        let rmPurchaseUnitDisplay    = "";
+
+        if (!rawMap.hasOwnProperty(recipeRM)) {
+
+            status = "DD";
+            remark = "Not Match Raw Material";
+            notMatched++;
+
+        } else {
+
+            const { consumptionUnit, purchaseUnit } = rawMap[recipeRM];
+
+            rmConsumptionUnitDisplay = consumptionUnit;
+            rmPurchaseUnitDisplay    = purchaseUnit;
+
+            if (consumptionUnit === recipeUnit) {
+
+                // Consumption unit se match hua
+                status = "TRUE";
+                remark = "OK - Consumption Unit Match";
+                matched++;
+
+            } else if (purchaseUnit && purchaseUnit === recipeUnit) {
+
+                // Purchase unit se match hua
+                status = "PURCHASE MATCH";
+                remark = "Purchase Unit Match";
+                purchaseMatch++;
+
+            } else {
+
+                // Koi bhi unit se match nahi hua
+                status = "FALSE";
+                remark = "Unit Error";
+                unitError++;
+            }
+        }
+
+        row.push(rmConsumptionUnitDisplay);
+        row.push(rmPurchaseUnitDisplay);
+        row.push(status);
+        row.push(remark);
+
+        finalData.push(row);
+    }
+
+    document.getElementById("total").innerText        = finalData.length - 1;
+    document.getElementById("matched").innerText      = matched;
+    document.getElementById("purchasematch").innerText = purchaseMatch;
+    document.getElementById("uniterror").innerText    = unitError;
+    document.getElementById("notmatched").innerText   = notMatched;
+
+    renderTable();
+}
+
+function renderTable() {
+
+    const table = document.getElementById("previewTable");
+    table.innerHTML = "";
+
+    finalData.forEach((row, index) => {
+
+        const tr = document.createElement("tr");
+
+        row.forEach((cell) => {
+            const td = document.createElement(index === 0 ? "th" : "td");
+            td.textContent = cell ?? "";
+            tr.appendChild(td);
+        });
+
+        if (index > 0) {
+            const status = row[row.length - 2];
+
+            if (status === "DD") {
+                tr.classList.add("notmatch");
+            } else if (status === "FALSE") {
+                tr.classList.add("uniterror");
+            } else if (status === "PURCHASE MATCH") {
+                tr.classList.add("purchasematch");
+            } else {
+                tr.classList.add("ok");
+            }
+        }
+
+        table.appendChild(tr);
+    });
+}
+
+function downloadExcel() {
+
+    if (finalData.length === 0) {
+        alert("Please validate first");
+        return;
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(finalData);
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(wb, ws, "Validation Result");
+
+    XLSX.writeFile(wb, "Raw_Material_Validation_Result.xlsx");
+}
+
+</script>
+
+</body>
+</html>
