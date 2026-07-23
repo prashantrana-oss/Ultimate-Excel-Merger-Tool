@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raw Material Validator</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+<style>
+:root{
+    --accent:#007bff;
+    --accent-dark:#0056b3;
+}
+body{
+    font-family: Arial, sans-serif;
+    background:#f4f6f9;
+    margin:20px;
+}
+.container{
+    max-width:1200px;
+    margin:auto;
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 2px 10px rgba(0,0,0,.1);
+}
+h2{
+    text-align:center;
+}
+.upload-box{
+    display:flex;
+    gap:20px;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+}
+.upload-card{
+    flex:1;
+    min-width:300px;
+    border:2px dashed #ccc;
+    padding:20px;
+    border-radius:10px;
+}
+.card-recipe{
+    background:#eef4ff;
+    border-color:#b9d3ff;
+}
+.card-rawmat{
+    background:#f3edfd;
+    border-color:#d3c2f7;
+}
+body.dark-mode .card-recipe{
+    background:#1b2333;
+    border-color:#334066;
+}
+body.dark-mode .card-rawmat{
+    background:#241d33;
+    border-color:#4a3566;
+}
+button{
+    padding:10px 20px;
+    border:none;
+    background:var(--accent);
+    color:white;
+    border-radius:5px;
+    cursor:pointer;
+}
+button:hover{
+    background:color-mix(in srgb, var(--accent) 80%, black);
+}
+.btn-validate{
+    background:#28a745;
+}
+.btn-validate:hover{
+    background:#1e7e34;
+}
+.btn-download{
+    background:var(--accent);
+}
+.btn-download:hover{
+    background:color-mix(in srgb, var(--accent) 80%, black);
+}
+.accent-picker-wrap{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin-left:12px;
+    font-size:13px;
+}
+.accent-picker-wrap input[type="color"]{
+    width:34px;
+    height:30px;
+    border:1px solid #ccc;
+    border-radius:5px;
+    padding:2px;
+    cursor:pointer;
+    background:none;
+}
+.summary{
+    display:flex;
+    gap:15px;
+    flex-wrap:wrap;
+    margin:20px 0;
+}
+.card{
+    background:#f8f9fa;
+    padding:15px;
+    border-radius:8px;
+    min-width:180px;
+    text-align:center;
+    font-weight:bold;
+    border-left:4px solid var(--accent);
+    transition:transform .15s, box-shadow .15s;
+}
+.card:hover{
+    transform:translateY(-2px);
+    box-shadow:0 4px 10px rgba(0,0,0,.08);
+}
+.card-total{ background:#eaf2ff; border-left-color:#007bff; }
+.card-total span{ color:#0056b3; }
+.card-matched{ background:#e9f7ee; border-left-color:#28a745; }
+.card-matched span{ color:#1e7e34; }
+.card-uniterror{ background:#fff8e1; border-left-color:#e6ac00; }
+.card-uniterror span{ color:#946f00; }
+.card-notmatched{ background:#fdecec; border-left-color:#dc3545; }
+.card-notmatched span{ color:#a71d2a; }
+.card-purchase{ background:#f4edfc; border-left-color:#8a4fd8; }
+.card-purchase span{ color:#63339e; }
+.card span{
+    font-size:20px;
+}
+
+.file-name{
+    display:block;
+    font-size:12px;
+    color:#666;
+    margin:6px 0;
+}
+.upload-card{
+    transition:background .2s, border-color .2s;
+}
+.upload-card.drag-active{
+    background:#eaf3ff;
+    border-color:var(--accent);
+}
+body.dark-mode .upload-card.drag-active{
+    background:#232a3d;
+    border-color:#5b7cfa;
+}
+
+.note{
+    padding:10px 15px;
+    border-radius:6px;
+    font-size:13px;
+    border:1px solid transparent;
+    font-weight:bold;
+}
+.note-warning{
+    background:#fff3cd;
+    border-color:#ffeeba;
+    color:#856404;
+}
+.note-info{
+    background:#d9edf7;
+    border-color:#bce8f1;
+    color:#31708f;
+}
+.note-tip{
+    background:#e9f7ee;
+    border-color:#c3e6cb;
+    color:#1e7e34;
+}
+body.dark-mode .note-warning{
+    background:#3a3319;
+    border-color:#5a4c22;
+    color:#f3d999;
+}
+body.dark-mode .note-info{
+    background:#1b2c33;
+    border-color:#2c4a56;
+    color:#9ad9f0;
+}
+body.dark-mode .note-tip{
+    background:#1c332a;
+    border-color:#2c4a3a;
+    color:#a9e6c4;
+}
+
+.btn-reset{
+    background:#dc3545;
+}
+.btn-reset:hover{
+    background:#a71d2a;
+}
+body.dark-mode .btn-reset{
+    background:#7a2c34;
+}
+body.dark-mode .btn-reset:hover{
+    background:#932430;
+}
+body.dark-mode .file-name{
+    color:#9aa2b1;
+}
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
+    font-size:13px;
+}
+th,td{
+    border:1px solid #ddd;
+    padding:8px;
+}
+th{
+    background:var(--accent);
+    background-image:linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.08));
+    color:white;
+}
+tbody tr:nth-child(even).ok,
+tbody tr:nth-child(even).uniterror,
+tbody tr:nth-child(even).notmatch{
+    filter:brightness(0.97);
+}
+.notmatch{
+    background:#ffb3b3;
+}
+.uniterror{
+    background:#fff2a8;
+}
+.ok{
+    background:#d4edda;
+}
+.table-wrap{
+    max-height:600px;
+    overflow:auto;
+    border:1px solid #ddd;
+    border-radius:6px;
+}
+table th{
+    position:sticky;
+    top:0;
+    z-index:2;
+}
+.filter-bar{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:15px 0;
+    flex-wrap:wrap;
+}
+.filter-bar select{
+    padding:8px 12px;
+    border-radius:5px;
+    border:1px solid #ccc;
+    transition:border-color .2s, color .2s;
+}
+.filter-bar select.filter-dd{
+    border-color:#dc3545;
+    color:#a71d2a;
+    font-weight:bold;
+}
+.filter-bar select.filter-false{
+    border-color:#e6ac00;
+    color:#946f00;
+    font-weight:bold;
+}
+.filter-bar select.filter-error{
+    border-color:#8a4fd8;
+    color:#63339e;
+    font-weight:bold;
+}
+.filter-bar span{
+    font-size:13px;
+    color:#555;
+}
+.loading-overlay{
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(255,255,255,0.75);
+    z-index:999;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:15px;
+}
+.loading-overlay.active{
+    display:flex;
+}
+.spinner{
+    width:50px;
+    height:50px;
+    border:6px solid #e0e0e0;
+    border-top:6px solid var(--accent);
+    border-radius:50%;
+    animation:spin 0.9s linear infinite;
+}
+@keyframes spin{
+    to{ transform:rotate(360deg); }
+}
+.loading-text{
+    font-weight:bold;
+    color:#333;
+}
+.toast{
+    position:fixed;
+    bottom:24px;
+    right:24px;
+    padding:14px 20px;
+    border-radius:8px;
+    color:white;
+    font-weight:bold;
+    font-size:14px;
+    box-shadow:0 4px 14px rgba(0,0,0,.2);
+    z-index:1000;
+    opacity:0;
+    transform:translateY(10px);
+    transition:opacity .25s, transform .25s;
+    pointer-events:none;
+}
+.toast.show{
+    opacity:1;
+    transform:translateY(0);
+}
+.toast.success{
+    background:#28a745;
+}
+.toast.error{
+    background:#dc3545;
+}
+
+/* ===== Dark Theme ===== */
+.theme-toggle-wrap{
+    display:flex;
+    justify-content:flex-end;
+    margin-bottom:10px;
+}
+.theme-toggle{
+    padding:8px 18px;
+    border-radius:20px;
+    background:#eef0f4;
+    color:#20242c;
+    border:1px solid #d7dae0;
+    cursor:pointer;
+    font-size:13px;
+    font-weight:600;
+    transition:background .2s, color .2s;
+}
+body.dark-mode{
+    background:#12141a;
+    color:#d7dbe3;
+}
+body.dark-mode .theme-toggle{
+    background:#2a2f3a;
+    color:#f1c78a;
+    border-color:#3a4050;
+}
+body.dark-mode .container{
+    background:#1a1d25;
+    box-shadow:0 2px 18px rgba(0,0,0,.55);
+    border:1px solid #262b36;
+}
+body.dark-mode h2{
+    color:#f2f4f8;
+}
+body.dark-mode .upload-card{
+    border-color:#333947;
+    background:#1f232c;
+}
+body.dark-mode .upload-card h3{
+    color:#f2f4f8;
+}
+body.dark-mode .upload-card p{
+    color:#9aa2b1;
+}
+body.dark-mode button{
+    background:#5b7cfa;
+    color:#fff;
+}
+body.dark-mode button:hover{
+    background:#4763d1;
+}
+body.dark-mode .card{
+    background:#1f232c;
+    color:#e3e6ec;
+    border:1px solid #2c313d;
+    border-left:4px solid #5b7cfa;
+}
+body.dark-mode .card-total{ background:#1c2436; border-left-color:#5b7cfa; }
+body.dark-mode .card-total span{ color:#9ab4ff; }
+body.dark-mode .card-matched{ background:#152a20; border-left-color:#3ecf8e; }
+body.dark-mode .card-matched span{ color:#7be0ae; }
+body.dark-mode .card-uniterror{ background:#2e2712; border-left-color:#e0b23e; }
+body.dark-mode .card-uniterror span{ color:#f0cd7a; }
+body.dark-mode .card-notmatched{ background:#301a1d; border-left-color:#e0616f; }
+body.dark-mode .card-notmatched span{ color:#f0989f; }
+body.dark-mode .card-purchase{ background:#251c33; border-left-color:#b58af8; }
+body.dark-mode .card-purchase span{ color:#cdaefa; }
+body.dark-mode .btn-validate{ background:#2fa85a; }
+body.dark-mode .btn-validate:hover{ background:#25873f; }
+body.dark-mode .btn-download{ background:#5b7cfa; }
+body.dark-mode .btn-download:hover{ background:#4763d1; }
+body.dark-mode .accent-picker-wrap input[type="color"]{
+    border-color:#3a4050;
+}
+body.dark-mode .filter-bar select.filter-dd{
+    border-color:#e0616f;
+    color:#f0989f;
+}
+body.dark-mode .filter-bar select.filter-false{
+    border-color:#e0b23e;
+    color:#f0cd7a;
+}
+body.dark-mode .filter-bar select.filter-error{
+    border-color:#b58af8;
+    color:#cdaefa;
+}
+body.dark-mode table{
+    color:#d7dbe3;
+}
+body.dark-mode th{
+    background:#232838;
+    color:#eef0f5;
+}
+body.dark-mode th,
+body.dark-mode td{
+    border-color:#2c313d;
+}
+body.dark-mode .table-wrap{
+    border-color:#2c313d;
+}
+body.dark-mode .filter-bar select{
+    background:#1f232c;
+    color:#e3e6ec;
+    border-color:#3a4050;
+}
+body.dark-mode .filter-bar span{
+    color:#9aa2b1;
+}
+body.dark-mode .loading-overlay{
+    background:rgba(12,14,18,0.85);
+}
+body.dark-mode .loading-text{
+    color:#eef0f5;
+}
+body.dark-mode .spinner{
+    border-color:#2c313d;
+    border-top-color:#5b7cfa;
+}
+body.dark-mode .notmatch{
+    background:#3a1f22;
+    color:#f5b8bd;
+}
+body.dark-mode .uniterror{
+    background:#3a3319;
+    color:#f3d999;
+}
+body.dark-mode .ok{
+    background:#1c332a;
+    color:#a9e6c4;
+}
+body.dark-mode p[style*="fff3cd"]{
+    background:#3a3319 !important;
+    border-color:#5a4c22 !important;
+    color:#f3d999 !important;
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+<div class="spinner"></div>
+<div class="loading-text" id="loadingText">Processing...</div>
+</div>
+
+<div class="container">
+
+<div class="theme-toggle-wrap">
+<button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()">🌙 Dark Mode</button>
+</div>
+
+<h2>Raw Material Validation Tool</h2>
+
+<div class="upload-box">
+
+<div class="upload-card card-recipe" id="recipeDropZone">
+<h3>Recipe File</h3>
+<input type="file" id="recipeFile" accept=".xlsx,.xls,.csv" onchange="updateFileName('recipeFile','recipeFileName')">
+<span class="file-name" id="recipeFileName">No file chosen — or drag & drop here</span>
+<p>
+Raw Material = Column B<br>
+Recipe Unit = Column D
+</p>
+</div>
+
+<div class="upload-card card-rawmat" id="rawDropZone">
+<h3>Raw Material File</h3>
+<input type="file" id="rawFile" accept=".xlsx,.xls,.csv" onchange="updateFileName('rawFile','rawFileName')">
+<span class="file-name" id="rawFileName">No file chosen — or drag & drop here</span>
+<p>
+Raw Material Name = Column A<br>
+Purchase Unit = Column B<br>
+Consumption Unit = Column D
+</p>
+</div>
+
+</div>
+
+<p class="note note-warning">
+⚠️ Column positions are fixed (Recipe File: B=Raw Material, D=Unit; Raw Material File: A=Raw Material, B=Purchase Unit, D=Consumption Unit) — if the columns are in different positions in your file, the result will be incorrect.
+</p>
+
+<button class="btn-validate" onclick="processFiles()">Validate Data</button>
+<button class="btn-download" onclick="downloadExcel()">Download Result</button>
+<button class="btn-reset" onclick="resetTool()">Reset / Clear</button>
+
+<span class="accent-picker-wrap">
+<label for="accentPicker">Accent Color:</label>
+<input type="color" id="accentPicker" value="#007bff" oninput="updateAccent(this.value)">
+</span>
+
+<div class="summary">
+<div class="card card-total">Total Records<br><span id="total">0</span></div>
+<div class="card card-matched">Matched<br><span id="matched">0</span></div>
+<div class="card card-uniterror">Unit Error<br><span id="uniterror">0</span></div>
+<div class="card card-notmatched">Not Matched<br><span id="notmatched">0</span></div>
+<div class="card card-purchase">Purchase Unit Mismatch<br><span id="purchasemismatch">0</span></div>
+</div>
+
+<div class="filter-bar">
+<label for="statusFilter"><strong>Filter:</strong></label>
+<select id="statusFilter" onchange="renderTable(); updateFilterColor();">
+<option value="all">Show All</option>
+<option value="DD">Only Not Matched (DD)</option>
+<option value="FALSE">Only Unit Error (FALSE)</option>
+<option value="ERROR">Only DD + FALSE</option>
+</select>
+<span id="filterCount"></span>
+</div>
+
+<div class="table-wrap">
+<table id="previewTable"></table>
+</div>
+
+</div>
+
+<script>
+
+let finalData=[];
+
+function toggleTheme(){
+    const body=document.body;
+    const btn=document.getElementById("themeToggleBtn");
+
+    body.classList.toggle("dark-mode");
+
+    if(body.classList.contains("dark-mode")){
+        btn.innerText="☀️ Light Mode";
+    }else{
+        btn.innerText="🌙 Dark Mode";
+    }
+}
+
+function updateAccent(color){
+    document.documentElement.style.setProperty("--accent", color);
+}
+
+function updateFilterColor(){
+    const select=document.getElementById("statusFilter");
+
+    select.classList.remove("filter-dd","filter-false","filter-error");
+
+    if(select.value==="DD") select.classList.add("filter-dd");
+    else if(select.value==="FALSE") select.classList.add("filter-false");
+    else if(select.value==="ERROR") select.classList.add("filter-error");
+}
+
+function showToast(message,type){
+    let toast=document.getElementById("appToast");
+
+    if(!toast){
+        toast=document.createElement("div");
+        toast.id="appToast";
+        toast.className="toast";
+        document.body.appendChild(toast);
+    }
+
+    toast.textContent=message;
+    toast.className="toast " + (type || "success");
+
+    requestAnimationFrame(()=>{
+        toast.classList.add("show");
+    });
+
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer=setTimeout(()=>{
+        toast.classList.remove("show");
+    },3000);
+}
+
+function showLoading(text){
+    document.getElementById("loadingText").innerText=text || "Processing...";
+    document.getElementById("loadingOverlay").classList.add("active");
+}
+
+function hideLoading(){
+    document.getElementById("loadingOverlay").classList.remove("active");
+}
+
+function wait(ms){
+    return new Promise((resolve)=>setTimeout(resolve, ms));
+}
+
+function readExcel(file){
+    return new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        const isCSV=file.name.toLowerCase().endsWith(".csv");
+
+        reader.onload=(e)=>{
+            let workbook;
+
+            if(isCSV){
+                workbook=XLSX.read(e.target.result,{type:'string'});
+            }else{
+                const data=new Uint8Array(e.target.result);
+                workbook=XLSX.read(data,{type:'array'});
+            }
+
+            const sheetName=workbook.SheetNames[0];
+            const sheet=workbook.Sheets[sheetName];
+            const json=XLSX.utils.sheet_to_json(sheet,{header:1});
+            resolve(json);
+        };
+
+        reader.onerror=reject;
+
+        if(isCSV){
+            reader.readAsText(file);
+        }else{
+            reader.readAsArrayBuffer(file);
+        }
+    });
+}
+
+function updateFileName(inputId,labelId){
+    const input=document.getElementById(inputId);
+    const label=document.getElementById(labelId);
+    label.textContent=input.files.length ? input.files[0].name : "No file chosen — or drag & drop here";
+}
+
+function setupDropZone(zoneId,inputId,labelId){
+    const zone=document.getElementById(zoneId);
+
+    zone.addEventListener("dragover",(e)=>{
+        e.preventDefault();
+        zone.classList.add("drag-active");
+    });
+
+    zone.addEventListener("dragleave",()=>{
+        zone.classList.remove("drag-active");
+    });
+
+    zone.addEventListener("drop",(e)=>{
+        e.preventDefault();
+        zone.classList.remove("drag-active");
+
+        const files=e.dataTransfer.files;
+
+        if(files.length){
+            document.getElementById(inputId).files=files;
+            updateFileName(inputId,labelId);
+        }
+    });
+}
+
+setupDropZone("recipeDropZone","recipeFile","recipeFileName");
+setupDropZone("rawDropZone","rawFile","rawFileName");
+
+function resetTool(){
+    document.getElementById("recipeFile").value="";
+    document.getElementById("rawFile").value="";
+    document.getElementById("recipeFileName").textContent="No file chosen — or drag & drop here";
+    document.getElementById("rawFileName").textContent="No file chosen — or drag & drop here";
+    document.getElementById("statusFilter").value="all";
+
+    finalData=[];
+
+    document.getElementById("total").innerText="0";
+    document.getElementById("matched").innerText="0";
+    document.getElementById("uniterror").innerText="0";
+    document.getElementById("notmatched").innerText="0";
+    document.getElementById("purchasemismatch").innerText="0";
+    document.getElementById("filterCount").innerText="";
+
+    document.getElementById("previewTable").innerHTML="";
+}
+
+async function processFiles(){
+
+    const recipe=document.getElementById('recipeFile').files[0];
+    const raw=document.getElementById('rawFile').files[0];
+
+    if(!recipe || !raw){
+        showToast("Please upload both files", "error");
+        return;
+    }
+
+    try{
+
+    showLoading("Reading files...");
+    await wait(30);
+
+    const recipeData=await readExcel(recipe);
+    const rawData=await readExcel(raw);
+
+    showLoading("Validating data...");
+    await wait(30);
+
+    const rawMap={};
+
+    for(let i=1;i<rawData.length;i++){
+
+        const rawName=(rawData[i][0]||"").toString().trim().toUpperCase();
+        const purchaseUnit=(rawData[i][1]||"").toString().trim().toUpperCase();
+        const unit=(rawData[i][3]||"").toString().trim().toUpperCase();
+
+        if(rawName){
+            rawMap[rawName]={
+                unit:unit,
+                purchaseUnit:purchaseUnit
+            };
+        }
+    }
+
+    finalData=[];
+
+    let matched=0;
+    let unitError=0;
+    let notMatched=0;
+    let purchaseMismatch=0;
+
+    const header=[
+        ...recipeData[0],
+        "Consumption Unit Status",
+        "Remark",
+        "Purchase Unit Status"
+    ];
+
+    finalData.push(header);
+
+    for(let i=1;i<recipeData.length;i++){
+
+        let row=[...recipeData[i]];
+
+        const recipeRM=(row[1]||"").toString().trim().toUpperCase();
+        const recipeUnit=(row[3]||"").toString().trim().toUpperCase();
+
+        if(!recipeRM){
+            continue;
+        }
+
+        let status="";
+        let remark="";
+        let purchaseStatus="";
+
+        if(!rawMap.hasOwnProperty(recipeRM)){
+
+            status="DD";
+            remark="Name Not Match";
+            notMatched++;
+
+            purchaseStatus="";
+            purchaseMismatch++;
+
+        }else{
+
+            const rawUnit=rawMap[recipeRM].unit;
+            const rawPurchaseUnit=rawMap[recipeRM].purchaseUnit;
+
+            if(rawUnit===recipeUnit){
+
+                status="TRUE";
+                remark="OK";
+                matched++;
+
+            }else{
+
+                status="FALSE";
+                remark="Unit Error";
+                unitError++;
+            }
+
+            if(rawPurchaseUnit===recipeUnit){
+                purchaseStatus="TRUE";
+            }else{
+                purchaseStatus="";
+                purchaseMismatch++;
+            }
+        }
+
+        row.push(status);
+        row.push(remark);
+        row.push(purchaseStatus);
+
+        finalData.push(row);
+    }
+
+    document.getElementById("total").innerText=finalData.length-1;
+    document.getElementById("matched").innerText=matched;
+    document.getElementById("uniterror").innerText=unitError;
+    document.getElementById("notmatched").innerText=notMatched;
+    document.getElementById("purchasemismatch").innerText=purchaseMismatch;
+
+    renderTable();
+
+    hideLoading();
+
+    showToast("Validation complete — " + (finalData.length-1) + " records processed", "success");
+
+    }catch(err){
+        hideLoading();
+        showToast("Error: " + err.message, "error");
+    }
+}
+
+function renderTable(){
+
+    const table=document.getElementById("previewTable");
+    table.innerHTML="";
+
+    const filterValue=document.getElementById("statusFilter").value;
+
+    const header=finalData[0];
+    const dataRows=finalData.slice(1);
+
+    const filteredRows=dataRows.filter((row)=>{
+
+        const status=row[row.length-3];
+
+        if(filterValue==="all") return true;
+        if(filterValue==="DD") return status==="DD";
+        if(filterValue==="FALSE") return status==="FALSE";
+        if(filterValue==="ERROR") return status==="DD" || status==="FALSE";
+
+        return true;
+    });
+
+    document.getElementById("filterCount").innerText=
+        "Showing " + filteredRows.length + " of " + dataRows.length + " rows";
+
+    const rowsToRender=[header, ...filteredRows];
+
+    rowsToRender.forEach((row,index)=>{
+
+        const tr=document.createElement("tr");
+
+        row.forEach((cell)=>{
+
+            const td=document.createElement(index===0 ? "th" : "td");
+            td.textContent=cell;
+
+            tr.appendChild(td);
+        });
+
+        if(index>0){
+
+            const status=row[row.length-3];
+
+            if(status==="DD"){
+                tr.classList.add("notmatch");
+            }
+            else if(status==="FALSE"){
+                tr.classList.add("uniterror");
+            }
+            else{
+                tr.classList.add("ok");
+            }
+        }
+
+        table.appendChild(tr);
+    });
+}
+
+async function downloadExcel(){
+
+    if(finalData.length===0){
+        showToast("Please validate first", "error");
+        return;
+    }
+
+    showLoading("Preparing Excel file...");
+    await wait(30);
+
+    try{
+
+        const workbook=new ExcelJS.Workbook();
+        const sheet=workbook.addWorksheet("Validation Result");
+
+        const header=finalData[0];
+        sheet.addRow(header);
+
+        const headerRow=sheet.getRow(1);
+        headerRow.eachCell((cell)=>{
+            cell.font={ bold:true, color:{ argb:"FFFFFFFF" } };
+            cell.fill={
+                type:"pattern",
+                pattern:"solid",
+                fgColor:{ argb:"FF007BFF" }
+            };
+        });
+
+        const colorMap={
+            "DD":"FFFFB3B3",
+            "FALSE":"FFFFF2A8"
+        };
+
+        for(let i=1;i<finalData.length;i++){
+
+            const row=finalData[i];
+            const excelRow=sheet.addRow(row);
+
+            const status=row[row.length-3];
+            const fillColor=colorMap[status] || "FFD4EDDA";
+
+            excelRow.eachCell({ includeEmpty:true },(cell)=>{
+                cell.fill={
+                    type:"pattern",
+                    pattern:"solid",
+                    fgColor:{ argb:fillColor }
+                };
+            });
+
+            if(i % 500 === 0){
+                await wait(0);
+            }
+        }
+
+        sheet.columns.forEach((col)=>{
+            col.width=18;
+        });
+
+        const buffer=await workbook.xlsx.writeBuffer();
+        const blob=new Blob(
+            [buffer],
+            { type:"application/octet-stream" }
+        );
+
+        const url=URL.createObjectURL(blob);
+        const link=document.createElement("a");
+        link.href=url;
+        link.download="Raw_Material_Validation_Result.xlsx";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showToast("Excel file downloaded", "success");
+
+    }catch(err){
+        showToast("Error creating Excel file: " + err.message, "error");
+    }finally{
+        hideLoading();
+    }
+}
+
+</script>
+
+</body>
+</html>
