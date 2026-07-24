@@ -127,6 +127,10 @@ button:hover{
 .card-notmatched span{ color:#a71d2a; }
 .card-purchase{ background:#f4edfc; border-left-color:#8a4fd8; }
 .card-purchase span{ color:#63339e; }
+.card-duplicate{ background:#fdf0fa; border-left-color:#c23bb0; }
+.card-duplicate span{ color:#9c1f8c; }
+.card-invalidqty{ background:#fff4e5; border-left-color:#e67e22; }
+.card-invalidqty span{ color:#b35a00; }
 .card span{
     font-size:20px;
 }
@@ -136,6 +140,74 @@ button:hover{
     font-size:12px;
     color:#666;
     margin:6px 0;
+}
+.col-map{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px dashed rgba(0,0,0,.15);
+    font-size:12px;
+}
+.col-map label{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+}
+.col-map select{
+    padding:4px 6px;
+    border-radius:4px;
+    border:1px solid #ccc;
+    font-size:12px;
+    max-width:170px;
+    background:white;
+}
+body.dark-mode .col-map{
+    border-top-color:rgba(255,255,255,.12);
+}
+body.dark-mode .col-map select{
+    background:#1f232c;
+    color:#e3e6ec;
+    border-color:#3a4050;
+}
+.duplicate-flag{
+    box-shadow: inset 4px 0 0 0 #8a4fd8;
+}
+body.dark-mode .duplicate-flag{
+    box-shadow: inset 4px 0 0 0 #b58af8;
+}
+.pagination-bar select{
+    padding:6px 10px;
+    border-radius:5px;
+    border:1px solid #ccc;
+}
+body.dark-mode .pagination-bar select{
+    background:#1f232c;
+    color:#e3e6ec;
+    border-color:#3a4050;
+}
+.pagination-bar button{
+    padding:6px 14px;
+    font-size:13px;
+}
+.progress-track{
+    width:220px;
+    height:8px;
+    background:#e0e0e0;
+    border-radius:4px;
+    overflow:hidden;
+    margin-top:4px;
+}
+.progress-fill{
+    height:100%;
+    width:0%;
+    background:var(--accent);
+    transition:width .15s;
+}
+body.dark-mode .progress-track{
+    background:#2c313d;
 }
 .upload-card{
     transition:background .2s, border-color .2s;
@@ -400,6 +472,10 @@ body.dark-mode .card-notmatched{ background:#301a1d; border-left-color:#e0616f; 
 body.dark-mode .card-notmatched span{ color:#f0989f; }
 body.dark-mode .card-purchase{ background:#251c33; border-left-color:#b58af8; }
 body.dark-mode .card-purchase span{ color:#cdaefa; }
+body.dark-mode .card-duplicate{ background:#31182e; border-left-color:#d466c4; }
+body.dark-mode .card-duplicate span{ color:#e8a4dd; }
+body.dark-mode .card-invalidqty{ background:#332212; border-left-color:#e6994d; }
+body.dark-mode .card-invalidqty span{ color:#f0bd88; }
 body.dark-mode .btn-validate{ background:#2fa85a; }
 body.dark-mode .btn-validate:hover{ background:#25873f; }
 body.dark-mode .btn-download{ background:#5b7cfa; }
@@ -475,6 +551,9 @@ body.dark-mode p[style*="fff3cd"]{
 <div class="loading-overlay" id="loadingOverlay">
 <div class="spinner"></div>
 <div class="loading-text" id="loadingText">Processing...</div>
+<div class="progress-track" id="progressTrack" style="display:none;">
+<div class="progress-fill" id="progressFill"></div>
+</div>
 </div>
 
 <div class="container">
@@ -489,30 +568,41 @@ body.dark-mode p[style*="fff3cd"]{
 
 <div class="upload-card card-recipe" id="recipeDropZone">
 <h3>Recipe File</h3>
-<input type="file" id="recipeFile" accept=".xlsx,.xls,.csv" onchange="updateFileName('recipeFile','recipeFileName')">
+<input type="file" id="recipeFile" accept=".xlsx,.xls,.csv" onchange="onRecipeFileChange()">
 <span class="file-name" id="recipeFileName">No file chosen — or drag & drop here</span>
 <p>
-Raw Material = Column B<br>
-Recipe Unit = Column D
+Default: Item = A, Raw Material = B, Qty = C, Unit = D<br>
+(change below if your file's columns are different)
 </p>
+<div class="col-map" id="recipeColMap">
+<label>Item / Product Name col: <select id="recipeItemCol"></select></label>
+<label>Raw Material col: <select id="recipeRMCol"></select></label>
+<label>Qty col: <select id="recipeQtyCol"></select></label>
+<label>Unit col: <select id="recipeUnitCol"></select></label>
+</div>
 </div>
 
 <div class="upload-card card-rawmat" id="rawDropZone">
 <h3>Raw Material File</h3>
-<input type="file" id="rawFile" accept=".xlsx,.xls,.csv" onchange="updateFileName('rawFile','rawFileName')">
+<input type="file" id="rawFile" accept=".xlsx,.xls,.csv" onchange="onRawFileChange()">
 <span class="file-name" id="rawFileName">No file chosen — or drag & drop here</span>
 <p>
-Raw Material Name = Column A<br>
-Purchase Unit = Column B<br>
-Consumption Unit = Column D
+Default: Name = A, Purchase Unit = B, Consumption Unit = D<br>
+(change below if your file's columns are different)
 </p>
+<div class="col-map" id="rawColMap">
+<label>Raw Material Name col: <select id="rawNameCol"></select></label>
+<label>Purchase Unit col: <select id="rawPurchaseCol"></select></label>
+<label>Consumption Unit col: <select id="rawUnitCol"></select></label>
+</div>
 </div>
 
 </div>
 
 <p class="note note-warning">
-⚠️ Column positions are fixed (Recipe File: B=Raw Material, D=Unit; Raw Material File: A=Raw Material, B=Purchase Unit, D=Consumption Unit) — if the columns are in different positions in your file, the result will be incorrect.
+⚠️ Default column positions are Recipe File: A=Item, B=Raw Material, C=Qty, D=Unit; Raw Material File: A=Raw Material, B=Purchase Unit, D=Consumption Unit. Use the column selectors under each upload box (they appear once a file is chosen) if your file's columns are in different positions.
 </p>
+<p class="note note-warning" id="rawDupWarning" style="display:none;"></p>
 
 <button class="btn-validate" onclick="processFiles()">Validate Data</button>
 <button class="btn-download" onclick="downloadExcel()">Download Result</button>
@@ -529,17 +619,32 @@ Consumption Unit = Column D
 <div class="card card-uniterror">Unit Error<br><span id="uniterror">0</span></div>
 <div class="card card-notmatched">Not Matched<br><span id="notmatched">0</span></div>
 <div class="card card-purchase">Purchase Unit Mismatch<br><span id="purchasemismatch">0</span></div>
+<div class="card card-duplicate">Duplicate Rows<br><span id="duplicaterows">0</span></div>
+<div class="card card-invalidqty">Invalid Qty<br><span id="invalidqty">0</span></div>
 </div>
 
 <div class="filter-bar">
 <label for="statusFilter"><strong>Filter:</strong></label>
-<select id="statusFilter" onchange="renderTable(); updateFilterColor();">
+<select id="statusFilter" onchange="currentPage=1; renderTable(); updateFilterColor();">
 <option value="all">Show All</option>
 <option value="DD">Only Not Matched (DD)</option>
 <option value="FALSE">Only Unit Error (FALSE)</option>
 <option value="ERROR">Only DD + FALSE</option>
 </select>
 <span id="filterCount"></span>
+</div>
+
+<div class="filter-bar pagination-bar" id="paginationBar" style="display:none;">
+<button onclick="changePage(-1)">&laquo; Prev</button>
+<span id="pageIndicator"></span>
+<button onclick="changePage(1)">Next &raquo;</button>
+<label for="rowsPerPage" style="margin-left:10px;">Rows per page:</label>
+<select id="rowsPerPage" onchange="onRowsPerPageChange()">
+<option value="50">50</option>
+<option value="100" selected>100</option>
+<option value="250">250</option>
+<option value="500">500</option>
+</select>
 </div>
 
 <div class="table-wrap">
@@ -551,6 +656,107 @@ Consumption Unit = Column D
 <script>
 
 let finalData=[];
+let currentPage=1;
+let cachedRecipeData=null;
+let cachedRecipeFile=null;
+let cachedRawData=null;
+let cachedRawFile=null;
+
+function colLetter(n){
+    let s="";
+    n=n+1;
+    while(n>0){
+        const rem=(n-1)%26;
+        s=String.fromCharCode(65+rem)+s;
+        n=Math.floor((n-1)/26);
+    }
+    return s;
+}
+
+function populateColumnSelect(selectEl,headerRow,defaultIndex){
+    if(!selectEl) return;
+    selectEl.innerHTML="";
+    const safeHeader=headerRow||[];
+    const maxCols=Math.max(safeHeader.length, defaultIndex+1, 10);
+
+    for(let i=0;i<maxCols;i++){
+        const opt=document.createElement("option");
+        opt.value=i;
+        const headerText=(safeHeader[i]!==undefined && safeHeader[i]!==null) ? safeHeader[i].toString().trim() : "";
+        opt.textContent=colLetter(i) + (headerText ? " – " + headerText : "");
+        selectEl.appendChild(opt);
+    }
+    selectEl.value=defaultIndex;
+}
+
+function initDefaultColumnSelects(){
+    populateColumnSelect(document.getElementById('recipeItemCol'), [], 0);
+    populateColumnSelect(document.getElementById('recipeRMCol'), [], 1);
+    populateColumnSelect(document.getElementById('recipeQtyCol'), [], 2);
+    populateColumnSelect(document.getElementById('recipeUnitCol'), [], 3);
+
+    populateColumnSelect(document.getElementById('rawNameCol'), [], 0);
+    populateColumnSelect(document.getElementById('rawPurchaseCol'), [], 1);
+    populateColumnSelect(document.getElementById('rawUnitCol'), [], 3);
+}
+
+async function onRecipeFileChange(){
+    updateFileName('recipeFile','recipeFileName');
+    const file=document.getElementById('recipeFile').files[0];
+    if(!file) return;
+
+    try{
+        showLoading("Reading recipe file headers...");
+        const data=await readExcel(file);
+        cachedRecipeData=data;
+        cachedRecipeFile=file;
+        const header=data[0]||[];
+
+        populateColumnSelect(document.getElementById('recipeItemCol'), header, 0);
+        populateColumnSelect(document.getElementById('recipeRMCol'), header, 1);
+        populateColumnSelect(document.getElementById('recipeQtyCol'), header, 2);
+        populateColumnSelect(document.getElementById('recipeUnitCol'), header, 3);
+    }catch(err){
+        showToast("Error reading recipe file: " + err.message, "error");
+    }finally{
+        hideLoading();
+    }
+}
+
+async function onRawFileChange(){
+    updateFileName('rawFile','rawFileName');
+    const file=document.getElementById('rawFile').files[0];
+    if(!file) return;
+
+    try{
+        showLoading("Reading raw material file headers...");
+        const data=await readExcel(file);
+        cachedRawData=data;
+        cachedRawFile=file;
+        const header=data[0]||[];
+
+        populateColumnSelect(document.getElementById('rawNameCol'), header, 0);
+        populateColumnSelect(document.getElementById('rawPurchaseCol'), header, 1);
+        populateColumnSelect(document.getElementById('rawUnitCol'), header, 3);
+    }catch(err){
+        showToast("Error reading raw material file: " + err.message, "error");
+    }finally{
+        hideLoading();
+    }
+}
+
+function showRawDuplicateWarning(names){
+    const el=document.getElementById("rawDupWarning");
+    if(!names || names.length===0){
+        el.style.display="none";
+        el.innerText="";
+        return;
+    }
+    const preview=names.slice(0,10).join(", ");
+    const more = names.length>10 ? " (+" + (names.length-10) + " more)" : "";
+    el.innerText = "⚠️ " + names.length + " duplicate raw material name(s) found in Raw Material file — last occurrence is used for matching: " + preview + more;
+    el.style.display="block";
+}
 
 function toggleTheme(){
     const body=document.body;
@@ -602,13 +808,25 @@ function showToast(message,type){
     },3000);
 }
 
-function showLoading(text){
+function showLoading(text,percent){
     document.getElementById("loadingText").innerText=text || "Processing...";
     document.getElementById("loadingOverlay").classList.add("active");
+
+    const track=document.getElementById("progressTrack");
+    const fill=document.getElementById("progressFill");
+
+    if(percent===undefined || percent===null){
+        track.style.display="none";
+    }else{
+        track.style.display="block";
+        fill.style.width=Math.max(0, Math.min(100, percent)) + "%";
+    }
 }
 
 function hideLoading(){
     document.getElementById("loadingOverlay").classList.remove("active");
+    document.getElementById("progressTrack").style.display="none";
+    document.getElementById("progressFill").style.width="0%";
 }
 
 function wait(ms){
@@ -652,7 +870,7 @@ function updateFileName(inputId,labelId){
     label.textContent=input.files.length ? input.files[0].name : "No file chosen — or drag & drop here";
 }
 
-function setupDropZone(zoneId,inputId,labelId){
+function setupDropZone(zoneId,inputId,labelId,onFileSet){
     const zone=document.getElementById(zoneId);
 
     zone.addEventListener("dragover",(e)=>{
@@ -673,12 +891,14 @@ function setupDropZone(zoneId,inputId,labelId){
         if(files.length){
             document.getElementById(inputId).files=files;
             updateFileName(inputId,labelId);
+            if(onFileSet) onFileSet();
         }
     });
 }
 
-setupDropZone("recipeDropZone","recipeFile","recipeFileName");
-setupDropZone("rawDropZone","rawFile","rawFileName");
+setupDropZone("recipeDropZone","recipeFile","recipeFileName", onRecipeFileChange);
+setupDropZone("rawDropZone","rawFile","rawFileName", onRawFileChange);
+initDefaultColumnSelects();
 
 function resetTool(){
     document.getElementById("recipeFile").value="";
@@ -687,6 +907,17 @@ function resetTool(){
     document.getElementById("rawFileName").textContent="No file chosen — or drag & drop here";
     document.getElementById("statusFilter").value="all";
 
+    cachedRecipeData=null;
+    cachedRecipeFile=null;
+    cachedRawData=null;
+    cachedRawFile=null;
+    initDefaultColumnSelects();
+
+    currentPage=1;
+    document.getElementById("rowsPerPage").value="100";
+    document.getElementById("paginationBar").style.display="none";
+    showRawDuplicateWarning([]);
+
     finalData=[];
 
     document.getElementById("total").innerText="0";
@@ -694,6 +925,8 @@ function resetTool(){
     document.getElementById("uniterror").innerText="0";
     document.getElementById("notmatched").innerText="0";
     document.getElementById("purchasemismatch").innerText="0";
+    document.getElementById("duplicaterows").innerText="0";
+    document.getElementById("invalidqty").innerText="0";
     document.getElementById("filterCount").innerText="";
 
     document.getElementById("previewTable").innerHTML="";
@@ -714,26 +947,72 @@ async function processFiles(){
     showLoading("Reading files...");
     await wait(30);
 
-    const recipeData=await readExcel(recipe);
-    const rawData=await readExcel(raw);
+    const recipeData = (cachedRecipeFile===recipe) ? cachedRecipeData : await readExcel(recipe);
+    const rawData = (cachedRawFile===raw) ? cachedRawData : await readExcel(raw);
 
-    showLoading("Validating data...");
+    // Column positions come from the mapping dropdowns (default A/B/C/D and A/B/D)
+    const itemCol=parseInt(document.getElementById('recipeItemCol').value) || 0;
+    const rmCol=parseInt(document.getElementById('recipeRMCol').value);
+    const qtyCol=parseInt(document.getElementById('recipeQtyCol').value);
+    const unitCol=parseInt(document.getElementById('recipeUnitCol').value);
+
+    const rawNameColIdx=parseInt(document.getElementById('rawNameCol').value) || 0;
+    const rawPurchaseColIdx=parseInt(document.getElementById('rawPurchaseCol').value);
+    const rawUnitColIdx=parseInt(document.getElementById('rawUnitCol').value);
+
+    const maxRecipeCol=Math.max(itemCol, rmCol, qtyCol, unitCol) + 1;
+
+    // Drag-fill the Item/Product Name column downward, same as dragging
+    // the fill-handle in Excel when the name is only present on the
+    // first row of each group.
+    let lastItemName="";
+    for(let i=1;i<recipeData.length;i++){
+        const row=recipeData[i];
+        if(!row) continue;
+        const cellItem=(row[itemCol]||"").toString().trim();
+        if(cellItem){
+            lastItemName=row[itemCol];
+        }else if(lastItemName){
+            row[itemCol]=lastItemName;
+        }
+    }
+
+    showLoading("Validating data...", 0);
     await wait(30);
 
     const rawMap={};
+    const rawNameCounts={};
 
     for(let i=1;i<rawData.length;i++){
 
-        const rawName=(rawData[i][0]||"").toString().trim().toUpperCase();
-        const purchaseUnit=(rawData[i][1]||"").toString().trim().toUpperCase();
-        const unit=(rawData[i][3]||"").toString().trim().toUpperCase();
+        const row=rawData[i]||[];
+        const rawName=(row[rawNameColIdx]||"").toString().trim().toUpperCase();
+        const purchaseUnit=(row[rawPurchaseColIdx]||"").toString().trim().toUpperCase();
+        const unit=(row[rawUnitColIdx]||"").toString().trim().toUpperCase();
 
         if(rawName){
             rawMap[rawName]={
                 unit:unit,
                 purchaseUnit:purchaseUnit
             };
+            rawNameCounts[rawName]=(rawNameCounts[rawName]||0)+1;
         }
+    }
+
+    const rawDuplicateNames=Object.keys(rawNameCounts).filter((k)=>rawNameCounts[k]>1);
+    showRawDuplicateWarning(rawDuplicateNames);
+
+    // Pre-pass: count Item + Raw Material combos so both occurrences of a
+    // duplicate row can be flagged, not just the second one.
+    const comboCounts={};
+    for(let i=1;i<recipeData.length;i++){
+        const row=recipeData[i];
+        if(!row) continue;
+        const itemName=(row[itemCol]||"").toString().trim().toUpperCase();
+        const rmName=(row[rmCol]||"").toString().trim().toUpperCase();
+        if(!itemName && !rmName) continue;
+        const key=itemName+"||"+rmName;
+        comboCounts[key]=(comboCounts[key]||0)+1;
     }
 
     finalData=[];
@@ -742,6 +1021,8 @@ async function processFiles(){
     let unitError=0;
     let notMatched=0;
     let purchaseMismatch=0;
+    let duplicateRows=0;
+    let invalidQtyCount=0;
 
     const header=[
         ...recipeData[0],
@@ -752,61 +1033,132 @@ async function processFiles(){
 
     finalData.push(header);
 
+    const totalRows=Math.max(1, recipeData.length-1);
+
     for(let i=1;i<recipeData.length;i++){
 
         let row=[...recipeData[i]];
 
-        const recipeRM=(row[1]||"").toString().trim().toUpperCase();
-        const recipeUnit=(row[3]||"").toString().trim().toUpperCase();
+        // Sheet parsing drops trailing blank cells, so a row with an empty
+        // mapped column may have fewer elements than expected. Pad so the
+        // status/remark/purchase-status values pushed below always land in
+        // the correct table columns instead of shifting left.
+        while(row.length<maxRecipeCol){
+            row.push("");
+        }
 
-        if(!recipeRM){
+        const itemNameRaw=(row[itemCol]||"").toString().trim().toUpperCase();
+        const recipeRM=(row[rmCol]||"").toString().trim().toUpperCase();
+        const recipeQty=(row[qtyCol]===undefined || row[qtyCol]===null) ? "" : row[qtyCol].toString().trim();
+        const recipeUnit=(row[unitCol]||"").toString().trim().toUpperCase();
+
+        const isRowEmpty = row.every((cell)=>{
+            return cell===undefined || cell===null || cell.toString().trim()==="";
+        });
+
+        if(isRowEmpty){
             continue;
         }
 
         let status="";
-        let remark="";
         let purchaseStatus="";
+        let remarkParts=[];
 
-        if(!rawMap.hasOwnProperty(recipeRM)){
+        const qtyMissing = (recipeQty==="");
+        const unitMissing = (recipeUnit==="");
 
-            status="DD";
-            remark="Name Not Match";
-            notMatched++;
+        let qtyInvalid=false;
+        if(!qtyMissing){
+            const qtyNum=parseFloat(recipeQty);
+            if(isNaN(qtyNum) || qtyNum<=0){
+                qtyInvalid=true;
+            }
+        }
 
-            purchaseStatus="";
-            purchaseMismatch++;
+        if(qtyMissing){
+            remarkParts.push("Qty Missing");
+        }else if(qtyInvalid){
+            remarkParts.push("Invalid Qty");
+            invalidQtyCount++;
+        }
+
+        if(unitMissing){
+            remarkParts.push("Unit Missing");
+        }
+
+        let nameFound=false;
+        let unitOk=false;
+
+        if(!recipeRM){
+
+            remarkParts.push("Name Not Found");
+
+        }else if(!rawMap.hasOwnProperty(recipeRM)){
+
+            remarkParts.push("Name Not Match");
 
         }else{
+
+            nameFound=true;
 
             const rawUnit=rawMap[recipeRM].unit;
             const rawPurchaseUnit=rawMap[recipeRM].purchaseUnit;
 
-            if(rawUnit===recipeUnit){
-
-                status="TRUE";
-                remark="OK";
-                matched++;
-
-            }else{
-
-                status="FALSE";
-                remark="Unit Error";
-                unitError++;
+            // Even when unit is missing, keep going — don't skip the
+            // remaining checks (purchase unit etc.) for this row.
+            if(!unitMissing){
+                if(rawUnit===recipeUnit){
+                    unitOk=true;
+                }else{
+                    remarkParts.push("Unit Error");
+                }
             }
 
             if(rawPurchaseUnit===recipeUnit){
                 purchaseStatus="TRUE";
             }else{
                 purchaseStatus="";
-                purchaseMismatch++;
             }
         }
+
+        const comboKey=itemNameRaw+"||"+recipeRM;
+        const isDuplicate = comboCounts[comboKey] > 1;
+        if(isDuplicate){
+            remarkParts.push("Duplicate Row");
+            duplicateRows++;
+        }
+
+        if(qtyMissing || qtyInvalid || unitMissing || !nameFound){
+            status="DD";
+            notMatched++;
+        }else if(!unitOk){
+            status="FALSE";
+            unitError++;
+        }else{
+            status="TRUE";
+            matched++;
+            if(remarkParts.length===0){
+                remarkParts.push("OK");
+            }
+        }
+
+        if(purchaseStatus!=="TRUE"){
+            purchaseMismatch++;
+        }
+
+        const remark=remarkParts.join(", ");
 
         row.push(status);
         row.push(remark);
         row.push(purchaseStatus);
 
         finalData.push(row);
+
+        if(i % 300 === 0){
+            const pct=Math.round((i/totalRows)*100);
+            showLoading("Validating data... " + pct + "%", pct);
+            await wait(0);
+        }
     }
 
     document.getElementById("total").innerText=finalData.length-1;
@@ -814,7 +1166,10 @@ async function processFiles(){
     document.getElementById("uniterror").innerText=unitError;
     document.getElementById("notmatched").innerText=notMatched;
     document.getElementById("purchasemismatch").innerText=purchaseMismatch;
+    document.getElementById("duplicaterows").innerText=duplicateRows;
+    document.getElementById("invalidqty").innerText=invalidQtyCount;
 
+    currentPage=1;
     renderTable();
 
     hideLoading();
@@ -827,6 +1182,16 @@ async function processFiles(){
     }
 }
 
+function onRowsPerPageChange(){
+    currentPage=1;
+    renderTable();
+}
+
+function changePage(delta){
+    currentPage+=delta;
+    renderTable();
+}
+
 function renderTable(){
 
     const table=document.getElementById("previewTable");
@@ -834,7 +1199,7 @@ function renderTable(){
 
     const filterValue=document.getElementById("statusFilter").value;
 
-    const header=finalData[0];
+    const header=finalData[0]||[];
     const dataRows=finalData.slice(1);
 
     const filteredRows=dataRows.filter((row)=>{
@@ -852,7 +1217,25 @@ function renderTable(){
     document.getElementById("filterCount").innerText=
         "Showing " + filteredRows.length + " of " + dataRows.length + " rows";
 
-    const rowsToRender=[header, ...filteredRows];
+    // Pagination — keeps large result sets (10k+ rows) fast to render
+    const rowsPerPage=parseInt(document.getElementById("rowsPerPage").value) || 100;
+    const totalPages=Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
+
+    if(currentPage>totalPages) currentPage=totalPages;
+    if(currentPage<1) currentPage=1;
+
+    const startIdx=(currentPage-1)*rowsPerPage;
+    const pageRows=filteredRows.slice(startIdx, startIdx+rowsPerPage);
+
+    const paginationBar=document.getElementById("paginationBar");
+    if(filteredRows.length>0){
+        paginationBar.style.display="flex";
+        document.getElementById("pageIndicator").innerText="Page " + currentPage + " of " + totalPages;
+    }else{
+        paginationBar.style.display="none";
+    }
+
+    const rowsToRender=[header, ...pageRows];
 
     rowsToRender.forEach((row,index)=>{
 
@@ -869,6 +1252,7 @@ function renderTable(){
         if(index>0){
 
             const status=row[row.length-3];
+            const remark=(row[row.length-2] || "").toString();
 
             if(status==="DD"){
                 tr.classList.add("notmatch");
@@ -878,6 +1262,10 @@ function renderTable(){
             }
             else{
                 tr.classList.add("ok");
+            }
+
+            if(remark.includes("Duplicate Row")){
+                tr.classList.add("duplicate-flag");
             }
         }
 
@@ -892,7 +1280,7 @@ async function downloadExcel(){
         return;
     }
 
-    showLoading("Preparing Excel file...");
+    showLoading("Preparing Excel file...", 0);
     await wait(30);
 
     try{
@@ -934,7 +1322,9 @@ async function downloadExcel(){
                 };
             });
 
-            if(i % 500 === 0){
+            if(i % 300 === 0){
+                const pct=Math.round((i/(finalData.length-1))*100);
+                showLoading("Preparing Excel file... " + pct + "%", pct);
                 await wait(0);
             }
         }
