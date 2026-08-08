@@ -84,6 +84,27 @@
   .status.ok{color:var(--good);background:#e9f1ea;}
   .status.err{color:var(--bad);background:#f6e8e6;}
   .status.pending{color:#8a8672;background:#f1efe6;}
+  .status.busy{color:var(--accent);background:var(--accent-soft);}
+  .removeBtn{
+    background:none;
+    border:none;
+    color:#9a9787;
+    font-size:16px;
+    line-height:1;
+    cursor:pointer;
+    padding:2px 6px;
+    margin-left:8px;
+    border-radius:2px;
+  }
+  .removeBtn:hover{color:var(--bad);background:#f6e8e6;}
+  .clearall{
+    background:none;
+    color:#7a7768;
+    border:1px solid var(--line);
+    padding:6px 12px;
+    font-size:12.5px;
+  }
+  .clearall:hover{border-color:var(--bad);color:var(--bad);}
   button{
     font-family:inherit;
     font-size:15px;
@@ -182,6 +203,7 @@
     <div class="filelist" id="filelist"></div>
     <div class="row">
       <button id="convertBtn" disabled>Convert files</button>
+      <button id="clearAllBtn" class="clearall" style="display:none;">Clear all</button>
       <span class="summary" id="summary"></span>
     </div>
     <div id="errArea"></div>
@@ -212,6 +234,7 @@ const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
 const filelistEl = document.getElementById('filelist');
 const convertBtn = document.getElementById('convertBtn');
+const clearAllBtn = document.getElementById('clearAllBtn');
 const summaryEl = document.getElementById('summary');
 const errArea = document.getElementById('errArea');
 const previewCard = document.getElementById('previewCard');
@@ -233,7 +256,24 @@ function addFiles(fileListObj){
   files.forEach(f => queued.push({file:f, status:'pending', error:null, rows:null}));
   fileInput.value = '';
   renderFileList();
-  convertBtn.disabled = queued.length === 0;
+}
+
+function removeFile(idx){
+  queued.splice(idx, 1);
+  renderFileList();
+  // if the list is now empty, also hide any stale preview/errors
+  if (!queued.length){
+    previewCard.style.display = 'none';
+    errArea.innerHTML = '';
+    mergedRows = [];
+  }
+}
+
+function statusInfo(item){
+  if (item.status === 'busy') return {cls:'busy', label:'converting…'};
+  if (item.status === 'ok') return {cls:'ok', label:(item.rows ? item.rows.length + ' rows' : 'ok')};
+  if (item.status === 'error') return {cls:'err', label:'failed'};
+  return {cls:'pending', label:'queued'};
 }
 
 function renderFileList(){
@@ -241,14 +281,40 @@ function renderFileList(){
   queued.forEach((item, idx) => {
     const row = document.createElement('div');
     row.className = 'fileitem';
-    const statusClass = item.status === 'ok' ? 'ok' : (item.status === 'error' ? 'err' : 'pending');
-    const statusLabel = item.status === 'ok' ? (item.rows ? item.rows.length + ' rows' : 'ok')
-      : (item.status === 'error' ? 'failed' : 'queued');
-    row.innerHTML = `<span class="name">${item.file.name}</span><span class="status ${statusClass}">${statusLabel}</span>`;
+    const {cls, label} = statusInfo(item);
+    const disableRemove = item.status === 'busy' ? 'disabled' : '';
+    row.innerHTML = `<span class="name">${item.file.name}</span>` +
+      `<span class="status ${cls}">${label}</span>` +
+      `<button type="button" class="removeBtn" title="Remove" ${disableRemove}>&times;</button>`;
+    row.querySelector('.removeBtn').addEventListener('click', () => removeFile(idx));
     filelistEl.appendChild(row);
   });
-  summaryEl.textContent = queued.length ? `${queued.length} file(s) queued` : '';
+
+  convertBtn.disabled = queued.length === 0 || queued.some(i => i.status === 'busy');
+  clearAllBtn.style.display = queued.length ? 'inline-block' : 'none';
+
+  if (!queued.length){
+    summaryEl.textContent = '';
+    return;
+  }
+  const ok = queued.filter(i => i.status === 'ok').length;
+  const failed = queued.filter(i => i.status === 'error').length;
+  const pending = queued.filter(i => i.status === 'pending').length;
+  const parts = [];
+  if (pending) parts.push(`${pending} queued`);
+  if (ok) parts.push(`${ok} converted`);
+  if (failed) parts.push(`${failed} failed`);
+  summaryEl.textContent = parts.length ? parts.join(' · ') : `${queued.length} file(s) queued`;
 }
+
+clearAllBtn.addEventListener('click', () => {
+  if (queued.some(i => i.status === 'busy')) return;
+  queued = [];
+  mergedRows = [];
+  errArea.innerHTML = '';
+  previewCard.style.display = 'none';
+  renderFileList();
+});
 
 convertBtn.addEventListener('click', async () => {
   errArea.innerHTML = '';
@@ -259,7 +325,12 @@ convertBtn.addEventListener('click', async () => {
 
   const includeBlanks = true; // always capture everything; filtering happens at download time
 
+  queued.forEach(item => { item.status = 'pending'; item.error = null; item.rows = null; });
+  renderFileList();
+
   for (const item of queued){
+    item.status = 'busy';
+    renderFileList();
     try {
       const rows = await processFile(item.file, includeBlanks);
       item.rows = rows;
@@ -270,9 +341,8 @@ convertBtn.addEventListener('click', async () => {
       item.error = err.message || String(err);
       errors.push(`${item.file.name}: ${item.error}`);
     }
+    renderFileList();
   }
-
-  renderFileList();
   convertBtn.disabled = false;
   convertBtn.textContent = 'Convert files';
 
@@ -417,7 +487,10 @@ function showPreview(rows){
   previewCard.style.display = 'block';
   rowCountEl.textContent = rows.length;
   const incompleteCount = rows.filter(r => !r._complete).length;
+  const completeCount = rows.length - incompleteCount;
   document.getElementById('incompleteCount').textContent = incompleteCount;
+  document.getElementById('downloadAllBtn').textContent = `Download with blank rows (${rows.length} rows, ${incompleteCount} blank)`;
+  document.getElementById('downloadCleanBtn').textContent = `Download without blank rows (${completeCount} rows)`;
   const thead = '<tr>' + OUT_HEADERS.map(h => `<th>${h}</th>`).join('') + '</tr>';
   const tbody = rows.map(r => {
     const style = r._complete ? '' : ' style="background:#f6efe0;"';
